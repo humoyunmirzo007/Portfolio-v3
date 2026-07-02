@@ -1,1 +1,26 @@
 @import "tailwindcss";
+
+/* Enable class-based dark mode (toggled via `.dark` on <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Brand palette — "Luminous Technical Modernism" + fonts */
+@theme {
+  --color-primary: #4d6bff;
+  --color-secondary: #8066fe;
+  --color-tertiary: #ff4d94;
+  --color-neutral: #f8f9fb;
+
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* offset so anchored sections aren't hidden under the fixed navbar */
+  scroll-padding-top: 6rem;
+}
+
+body {
+  font-family: var(--font-sans);
+}
