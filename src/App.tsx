@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, FormEvent } from 'react';
-import { motion, AnimatePresence, useScroll, useSpring } from 'motion/react';
+import React, { useState, useEffect, useRef, FormEvent } from 'react';
+import { motion, AnimatePresence, useScroll } from 'motion/react';
 import {
   Download,
   Mail,
@@ -26,6 +26,7 @@ import {
   Quote,
   GraduationCap,
   Briefcase,
+  Phone,
 } from 'lucide-react';
 import { translations } from './translations';
 
@@ -37,14 +38,18 @@ type Language = 'en' | 'ru';
 const SOCIALS = {
   telegram: 'https://t.me/iXumoyunmirzo',
   email: 'ikhumoyunmirzo@gmail.com',
+  phone: '+998771121196',
+  phoneDisplay: '+998-77-112-11-96',
   linkedin: 'https://www.linkedin.com/in/your-handle', // TODO: replace
   instagram: 'https://instagram.com/your-handle', // TODO: replace
-  github: 'https://github.com/humoyunmirzo007', // TODO: replace or remove
+  github: 'https://github.com/humoyunmirzo007',
 };
 
-// Create a form at https://formspree.io (free) and paste your endpoint here.
-// Until then the form falls back to opening the visitor's email client.
-const FORMSPREE_ENDPOINT = ''; // e.g. 'https://formspree.io/f/xxxxxxx'
+// ── Contact form delivery ────────────────────────────────────────────────────
+// Submissions go to /api/contact (Vercel serverless function), which forwards
+// them to Telegram. The bot token lives ONLY in Vercel env vars — never here.
+// If the API is unavailable (e.g. local dev), the form falls back to mailto.
+const CONTACT_API = '/api/contact';
 /* ------------------------------------------------------------------ */
 
 export default function App() {
@@ -53,12 +58,13 @@ export default function App() {
   const [scrolled, setScrolled] = useState(false);
   const [showTop, setShowTop] = useState(false);
   const [dark, setDark] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [expIndex, setExpIndex] = useState<number | null>(null);
 
   const t = translations[lang];
 
-  // Scroll progress bar
+  // Scroll progress bar (direct value — no spring, cheaper on scroll)
   const { scrollYProgress } = useScroll();
-  const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 30, mass: 0.3 });
 
   // Init theme from storage / system preference
   useEffect(() => {
@@ -78,8 +84,16 @@ export default function App() {
       setScrolled(window.scrollY > 50);
       setShowTop(window.scrollY > 500);
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setFormOpen(false); setExpIndex(null); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   const toggleLang = () => setLang((prev) => (prev === 'en' ? 'ru' : 'en'));
@@ -87,10 +101,11 @@ export default function App() {
   const NavItem = ({ href, label }: { href: string; label: string }) => (
     <a
       href={href}
-      className="text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors font-medium"
+      className="group relative text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors font-medium"
       onClick={() => setIsMenuOpen(false)}
     >
       {label}
+      <span className="absolute left-0 -bottom-1 h-0.5 w-full origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 bg-gradient-to-r from-primary to-tertiary rounded-full" />
     </a>
   );
 
@@ -104,15 +119,15 @@ export default function App() {
     <div className="min-h-screen bg-neutral dark:bg-slate-950 text-slate-900 dark:text-slate-100 selection:bg-primary/20 font-sans transition-colors duration-300">
       {/* Scroll progress bar */}
       <motion.div
-        style={{ scaleX: progress }}
-        className="fixed top-0 left-0 right-0 h-1 origin-left z-[60] bg-gradient-to-r from-primary via-secondary to-tertiary"
+        style={{ scaleX: scrollYProgress }}
+        className="fixed top-0 left-0 right-0 h-1 origin-left z-[60] bg-gradient-to-r from-primary via-secondary to-tertiary will-change-transform"
       />
 
       {/* Navigation */}
       <nav
         className={`fixed top-0 w-full z-50 transition-all duration-300 ${
           scrolled
-            ? 'bg-white/80 dark:bg-slate-950/80 backdrop-blur-md shadow-sm py-4'
+            ? 'bg-white/95 dark:bg-slate-950/95 shadow-sm py-4'
             : 'bg-transparent py-6'
         }`}
       >
@@ -134,20 +149,24 @@ export default function App() {
             <NavItem href="#experience" label={t.nav.experience} />
             <NavItem href="#projects" label={t.nav.projects} />
             <NavItem href="#contact" label={t.nav.contact} />
-            <button
+            <motion.button
+              whileHover={{ scale: 1.1, rotate: 15 }}
+              whileTap={{ scale: 0.9, rotate: -15 }}
               onClick={() => setDark((d) => !d)}
               aria-label="Toggle theme"
-              className="p-2 rounded-full border border-slate-200 dark:border-slate-700 hover:border-primary transition-all cursor-pointer"
+              className="p-2 rounded-full border border-slate-200 dark:border-slate-700 hover:border-primary transition-colors cursor-pointer"
             >
               {dark ? <Sun size={14} /> : <Moon size={14} />}
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={toggleLang}
-              className="flex items-center gap-2 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 hover:border-primary transition-all text-sm font-semibold cursor-pointer font-mono"
+              className="flex items-center gap-2 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 hover:border-primary transition-colors text-sm font-semibold cursor-pointer font-mono"
             >
               <Globe size={14} />
               {lang.toUpperCase()}
-            </button>
+            </motion.button>
           </div>
 
           {/* Mobile Toggle */}
@@ -186,9 +205,9 @@ export default function App() {
 
       {/* Hero Section */}
       <section id="home" className="relative pt-32 pb-20 md:pt-48 md:pb-24 container mx-auto px-6 overflow-hidden">
-        {/* soft gradient glows */}
-        <div className="pointer-events-none absolute -top-20 -left-20 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
-        <div className="pointer-events-none absolute top-40 right-0 w-96 h-96 bg-tertiary/20 rounded-full blur-3xl" />
+        {/* soft gradient glows (radial gradients — cheap to render, no blur filter) */}
+        <div className="pointer-events-none absolute -top-32 -left-32 w-[560px] h-[560px] bg-[radial-gradient(circle_at_center,rgba(77,107,255,0.18),transparent_65%)]" />
+        <div className="pointer-events-none absolute top-24 -right-24 w-[560px] h-[560px] bg-[radial-gradient(circle_at_center,rgba(255,77,148,0.15),transparent_65%)]" />
 
         <div className="relative max-w-4xl">
           <motion.div
@@ -219,6 +238,9 @@ export default function App() {
             <span className="bg-gradient-to-r from-primary via-secondary to-tertiary bg-clip-text text-transparent">
               {t.hero.name}
             </span>
+            <span className="block text-2xl md:text-4xl font-bold text-slate-400 dark:text-slate-500 mt-2">
+              {t.hero.patronymic}
+            </span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
@@ -243,20 +265,24 @@ export default function App() {
             transition={{ delay: 0.4 }}
             className="flex flex-wrap gap-4"
           >
-            <a
+            <motion.a
               href="/resume.pdf"
               download
-              className="bg-gradient-to-r from-primary to-secondary text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/25"
+              whileHover={{ scale: 1.04, y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              className="bg-gradient-to-r from-primary to-secondary text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-shadow"
             >
               <Download size={20} />
               {t.hero.downloadCV}
-            </a>
-            <a
+            </motion.a>
+            <motion.a
               href="#contact"
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-8 py-4 rounded-2xl font-bold hover:border-primary transition-all"
+              whileHover={{ scale: 1.04, y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-8 py-4 rounded-2xl font-bold hover:border-primary transition-colors"
             >
               {t.hero.contactMe}
-            </a>
+            </motion.a>
           </motion.div>
         </div>
 
@@ -268,9 +294,10 @@ export default function App() {
           className="relative mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl"
         >
           {t.stats.map((s, i) => (
-            <div
+            <motion.div
               key={i}
-              className="p-5 rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800 backdrop-blur"
+              whileHover={{ y: -4, scale: 1.03 }}
+              className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800"
             >
               <div className="text-3xl font-extrabold bg-gradient-to-r from-primary to-tertiary bg-clip-text text-transparent">
                 {s.value}
@@ -278,7 +305,7 @@ export default function App() {
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono uppercase tracking-wider">
                 {s.label}
               </div>
-            </div>
+            </motion.div>
           ))}
         </motion.div>
       </section>
@@ -310,6 +337,37 @@ export default function App() {
                     <p className="text-sm text-slate-500 dark:text-slate-400">{s.desc}</p>
                   </div>
                 ))}
+              </div>
+
+              {/* Currently leveling up — bright gradient chips */}
+              <div className="mt-8">
+                <p className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse" />
+                  {t.about.focusTitle}
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {t.about.focus.map((f, i) => {
+                    const gradients = [
+                      'from-primary to-secondary',
+                      'from-secondary to-tertiary',
+                      'from-tertiary to-primary',
+                      'from-primary via-secondary to-tertiary',
+                    ];
+                    return (
+                      <motion.span
+                        key={f}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: i * 0.08 }}
+                        whileHover={{ scale: 1.08, y: -2 }}
+                        className={`px-4 py-2 rounded-full text-sm font-bold text-white bg-gradient-to-r ${gradients[i % gradients.length]} shadow-md shadow-primary/20 cursor-default`}
+                      >
+                        {f}
+                      </motion.span>
+                    );
+                  })}
+                </div>
               </div>
             </motion.div>
 
@@ -400,7 +458,7 @@ export default function App() {
             <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-primary via-secondary to-tertiary md:-translate-x-1/2" />
             <div className="space-y-10">
               {t.experience.items.map((item, i) => {
-                const Icon = i === 1 ? BookOpen : i === 2 ? Briefcase : GraduationCap;
+                const Icon = i === 0 ? Briefcase : i === 2 ? BookOpen : i === 3 ? TrendingUp : GraduationCap;
                 return (
                   <motion.div
                     key={i}
@@ -419,14 +477,23 @@ export default function App() {
                     >
                       <Icon size={13} />
                     </span>
-                    <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <motion.div
+                      onClick={() => setExpIndex(i)}
+                      whileHover={{ y: -5, scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="group p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm cursor-pointer hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-[border-color,box-shadow]"
+                    >
                       <span className="font-mono text-xs text-primary">{item.period}</span>
                       <h3 className="text-lg font-bold mt-1">{item.role}</h3>
                       <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{item.org}</p>
                       <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
                         {item.desc}
                       </p>
-                    </div>
+                      <span className={`mt-3 inline-flex items-center gap-1 font-mono text-xs font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity ${i % 2 === 0 ? 'md:flex-row-reverse' : ''}`}>
+                        {t.experience.labels.hint}
+                        <ChevronRight size={14} className={i % 2 === 0 ? 'md:rotate-180' : ''} />
+                      </span>
+                    </motion.div>
                   </motion.div>
                 );
               })}
@@ -449,7 +516,8 @@ export default function App() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className="group bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-primary/40 transition-all hover:shadow-xl hover:shadow-primary/10"
+              whileHover={{ y: -6 }}
+              className="group bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-primary/40 transition-colors hover:shadow-xl hover:shadow-primary/10"
             >
               <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary mb-6 group-hover:bg-gradient-to-br group-hover:from-primary group-hover:to-tertiary group-hover:text-white transition-colors">
                 {i === 0 ? <TrendingUp size={24} /> : i === 1 ? <BookOpen size={24} /> : <Presentation size={24} />}
@@ -508,10 +576,20 @@ export default function App() {
             <h2 className="text-4xl font-bold mt-2">{t.contact.title}</h2>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto items-start">
             {/* Contact info + socials */}
-            <div className="space-y-8">
+            <div className="space-y-6">
               <ContactRow icon={<MapPin size={22} />} label={t.contact.location} value={t.contact.locationValue} />
+
+              {/* Yandex Map — mounts only when scrolled into view */}
+              <LazyMap />
+
+              <ContactRow
+                icon={<Phone size={22} />}
+                label={t.contact.phone}
+                value={SOCIALS.phoneDisplay}
+                href={`tel:${SOCIALS.phone}`}
+              />
               <ContactRow
                 icon={<Mail size={22} />}
                 label={t.contact.email}
@@ -521,7 +599,7 @@ export default function App() {
               <ContactRow
                 icon={<Send size={22} />}
                 label={t.contact.telegram}
-                value={'@' + SOCIALS.telegram.split('/').pop()}
+                value="@ixumoyunmirzo"
                 href={SOCIALS.telegram}
               />
 
@@ -534,11 +612,233 @@ export default function App() {
               </div>
             </div>
 
-            {/* Contact form */}
-            <ContactForm t={t.contact.form} />
+            {/* CTA — opens modal */}
+            <div className="flex flex-col items-center justify-center gap-6 py-12 px-8 rounded-3xl border border-white/10 text-center">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-tertiary flex items-center justify-center shadow-lg shadow-primary/30">
+                <Send size={32} />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold mb-2">{t.contact.writeUs}</h3>
+                <p className="text-slate-400 text-sm">Ответ в течение 24 часов</p>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.04, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setFormOpen(true)}
+                className="bg-gradient-to-r from-primary to-secondary text-white px-10 py-4 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-primary/30 cursor-pointer"
+              >
+                <Send size={18} />
+                {t.contact.writeUs}
+              </motion.button>
+            </div>
           </div>
         </div>
       </section>
+
+      {/* Contact Form Modal */}
+      <AnimatePresence>
+        {formOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          >
+            {/* backdrop */}
+            <motion.div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => setFormOpen(false)}
+            />
+            {/* panel */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 30 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+              className="relative z-10 w-full max-w-lg bg-slate-900 rounded-3xl p-8 shadow-2xl shadow-black/50 border border-white/10"
+            >
+              <button
+                onClick={() => setFormOpen(false)}
+                className="absolute top-5 right-5 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+              <h3 className="text-2xl font-bold text-white mb-6">{t.contact.writeUs}</h3>
+              <ContactForm t={t.contact.form} onSuccess={() => setFormOpen(false)} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Experience Detail Modal */}
+      <AnimatePresence>
+        {expIndex !== null && (() => {
+          const item = t.experience.items[expIndex];
+          const labels = t.experience.labels;
+          const Icon = expIndex === 0 ? Briefcase : expIndex === 2 ? BookOpen : expIndex === 3 ? TrendingUp : GraduationCap;
+          const chipGradients = [
+            'from-primary to-secondary',
+            'from-secondary to-tertiary',
+            'from-tertiary to-primary',
+          ];
+          return (
+            <motion.div
+              key="exp-modal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            >
+              {/* backdrop */}
+              <motion.div
+                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                onClick={() => setExpIndex(null)}
+              />
+              {/* panel */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 40 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 40 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+                className="relative z-10 w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-slate-900 rounded-3xl shadow-2xl shadow-black/50 border border-white/10"
+              >
+                {/* header */}
+                <div className="relative p-8 pb-6 bg-gradient-to-br from-primary/25 via-secondary/10 to-tertiary/25">
+                  <button
+                    onClick={() => setExpIndex(null)}
+                    className="absolute top-5 right-5 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer text-white"
+                    aria-label="Close"
+                  >
+                    <X size={18} />
+                  </button>
+                  <motion.div
+                    initial={{ scale: 0, rotate: -30 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.15 }}
+                    className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-tertiary flex items-center justify-center text-white mb-4 shadow-lg shadow-primary/30"
+                  >
+                    <Icon size={28} />
+                  </motion.div>
+                  <motion.span
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="font-mono text-xs text-tertiary"
+                  >
+                    {item.period}
+                  </motion.span>
+                  <motion.h3
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.25 }}
+                    className="text-2xl md:text-3xl font-extrabold text-white mt-1"
+                  >
+                    {item.role}
+                  </motion.h3>
+                  <motion.p
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="text-slate-300 font-medium"
+                  >
+                    {item.org}
+                  </motion.p>
+                </div>
+
+                {/* body */}
+                <div className="p-8 pt-6 space-y-7 text-slate-300">
+                  {/* About */}
+                  <motion.section
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.35 }}
+                  >
+                    <h4 className="font-mono text-xs uppercase tracking-widest text-primary mb-2">
+                      {labels.about}
+                    </h4>
+                    <p className="leading-relaxed">{item.details.summary}</p>
+                  </motion.section>
+
+                  {/* Responsibilities */}
+                  <motion.section
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.45 }}
+                  >
+                    <h4 className="font-mono text-xs uppercase tracking-widest text-primary mb-3">
+                      {labels.responsibilities}
+                    </h4>
+                    <ul className="space-y-2">
+                      {item.details.responsibilities.map((r, j) => (
+                        <motion.li
+                          key={j}
+                          initial={{ opacity: 0, x: -16 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.5 + j * 0.07 }}
+                          className="flex items-start gap-2"
+                        >
+                          <ChevronRight size={16} className="text-primary shrink-0 mt-1" />
+                          <span>{r}</span>
+                        </motion.li>
+                      ))}
+                    </ul>
+                  </motion.section>
+
+                  {/* Achievements */}
+                  <motion.section
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                  >
+                    <h4 className="font-mono text-xs uppercase tracking-widest text-primary mb-3">
+                      {labels.achievements}
+                    </h4>
+                    <ul className="space-y-2">
+                      {item.details.achievements.map((a, j) => (
+                        <motion.li
+                          key={j}
+                          initial={{ opacity: 0, x: -16 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.65 + j * 0.07 }}
+                          className="flex items-start gap-2"
+                        >
+                          <span className="text-tertiary mt-0.5">✦</span>
+                          <span>{a}</span>
+                        </motion.li>
+                      ))}
+                    </ul>
+                  </motion.section>
+
+                  {/* Skills */}
+                  <motion.section
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.75 }}
+                  >
+                    <h4 className="font-mono text-xs uppercase tracking-widest text-primary mb-3">
+                      {labels.skills}
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {item.details.skills.map((s, j) => (
+                        <motion.span
+                          key={s}
+                          initial={{ opacity: 0, scale: 0.7 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.8 + j * 0.06, type: 'spring', stiffness: 300 }}
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold text-white bg-gradient-to-r ${chipGradients[j % chipGradients.length]}`}
+                        >
+                          {s}
+                        </motion.span>
+                      ))}
+                    </div>
+                  </motion.section>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* Footer */}
       <footer className="py-10 border-t border-slate-100 dark:border-slate-800 bg-neutral dark:bg-slate-950">
@@ -562,9 +862,11 @@ export default function App() {
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.5 }}
+            whileHover={{ scale: 1.15, y: -3 }}
+            whileTap={{ scale: 0.9 }}
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             aria-label={t.footer.backToTop}
-            className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-gradient-to-br from-primary to-tertiary text-white flex items-center justify-center shadow-lg shadow-primary/30 hover:scale-110 transition-transform cursor-pointer"
+            className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-gradient-to-br from-primary to-tertiary text-white flex items-center justify-center shadow-lg shadow-primary/30 cursor-pointer"
           >
             <ArrowUp size={20} />
           </motion.button>
@@ -575,6 +877,48 @@ export default function App() {
 }
 
 /* ---------- helper components ---------- */
+
+function LazyMap() {
+  const ref = useRef<HTMLAnchorElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          obs.disconnect();
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return (
+    <a
+      ref={ref}
+      href="https://yandex.com/maps/?ll=69.1967%2C41.2925&z=15&pt=69.1967%2C41.2925,pm2rdm"
+      target="_blank"
+      rel="noreferrer"
+      className="block overflow-hidden rounded-2xl border border-white/10 hover:border-primary/60 transition-colors h-[160px] bg-white/5"
+    >
+      {visible && (
+        <iframe
+          src="https://yandex.com/map-widget/v1/?ll=69.1967%2C41.2925&z=15&pt=69.1967%2C41.2925,pm2rdm&theme=dark"
+          width="100%"
+          height="160"
+          frameBorder="0"
+          title="Location map"
+          className="pointer-events-none block"
+        />
+      )}
+    </a>
+  );
+}
 
 function ContactRow({
   icon,
@@ -607,23 +951,27 @@ function ContactRow({
 
 function SocialIcon({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
   return (
-    <a
+    <motion.a
       href={href}
       target={href.startsWith('http') ? '_blank' : undefined}
       rel="noreferrer"
       aria-label={label}
-      className="w-11 h-11 rounded-full bg-white/10 hover:bg-gradient-to-br hover:from-primary hover:to-tertiary flex items-center justify-center transition-all"
+      whileHover={{ scale: 1.15, y: -3 }}
+      whileTap={{ scale: 0.9 }}
+      className="w-11 h-11 rounded-full bg-white/10 hover:bg-gradient-to-br hover:from-primary hover:to-tertiary flex items-center justify-center transition-colors"
     >
       {children}
-    </a>
+    </motion.a>
   );
 }
 
 function ContactForm({
   t,
+  onSuccess,
 }: {
   t: {
     name: string;
+    phone: string;
     email: string;
     message: string;
     send: string;
@@ -631,75 +979,79 @@ function ContactForm({
     success: string;
     error: string;
   };
+  onSuccess?: () => void;
 }) {
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const formRef = useRef<HTMLFormElement>(null);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
     const data = new FormData(form);
+    const name    = String(data.get('name') ?? '');
+    const phone   = String(data.get('phone') ?? '');
+    const email   = String(data.get('email') ?? '');
+    const message = String(data.get('message') ?? '');
 
-    // No Formspree endpoint configured → fall back to email client
-    if (!FORMSPREE_ENDPOINT) {
-      const name = data.get('name');
-      const email = data.get('email');
-      const message = data.get('message');
-      window.location.href = `mailto:${SOCIALS.email}?subject=${encodeURIComponent(
-        'Portfolio message from ' + name,
-      )}&body=${encodeURIComponent(String(message) + '\n\nFrom: ' + name + ' (' + email + ')')}`;
-      return;
-    }
-
+    // ── Send via serverless API → Telegram ─────────────────────────────
     setStatus('sending');
     try {
-      const res = await fetch(FORMSPREE_ENDPOINT, {
+      const res = await fetch(CONTACT_API, {
         method: 'POST',
-        body: data,
-        headers: { Accept: 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, email, message }),
       });
       if (res.ok) {
         setStatus('success');
         form.reset();
-      } else {
-        setStatus('error');
+        setTimeout(() => { onSuccess?.(); }, 1800);
+        return;
       }
     } catch {
-      setStatus('error');
+      /* fall through to mailto fallback */
     }
+
+    // ── Fallback: open email client (e.g. local dev without the API) ───
+    setStatus('idle');
+    window.location.href =
+      `mailto:${SOCIALS.email}` +
+      `?subject=${encodeURIComponent('Portfolio message from ' + name)}` +
+      `&body=${encodeURIComponent(`${message}\n\nFrom: ${name}\nPhone: ${phone}\nEmail: ${email}`)}`;
   };
 
+  const inputClass =
+    'w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 focus:border-primary outline-none transition-colors placeholder:text-slate-500 text-white';
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <input
-        name="name"
-        required
-        placeholder={t.name}
-        className="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 focus:border-primary outline-none transition-colors placeholder:text-slate-500"
-      />
-      <input
-        name="email"
-        type="email"
-        required
-        placeholder={t.email}
-        className="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 focus:border-primary outline-none transition-colors placeholder:text-slate-500"
-      />
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+      <input name="name"  required placeholder={t.name}  className={inputClass} />
+      <input name="phone" required placeholder={t.phone} type="tel" className={inputClass} />
+      <input name="email" required placeholder={t.email} type="email" className={inputClass} />
       <textarea
         name="message"
         required
-        rows={5}
+        rows={4}
         placeholder={t.message}
-        className="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 focus:border-primary outline-none transition-colors placeholder:text-slate-500 resize-none"
+        className={`${inputClass} resize-none`}
       />
-      <button
+      <motion.button
         type="submit"
-        disabled={status === 'sending'}
-        className="w-full bg-gradient-to-r from-primary to-secondary text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/25 disabled:opacity-60 cursor-pointer"
+        disabled={status === 'sending' || status === 'success'}
+        whileHover={{ scale: 1.02, y: -2 }}
+        whileTap={{ scale: 0.98 }}
+        className="w-full bg-gradient-to-r from-primary to-secondary text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/25 transition-shadow disabled:opacity-60 cursor-pointer"
       >
-        <Send size={18} />
+        <motion.span
+          animate={status === 'sending' ? { rotate: 360 } : { rotate: 0 }}
+          transition={status === 'sending' ? { repeat: Infinity, duration: 0.8, ease: 'linear' } : {}}
+          className="flex"
+        >
+          <Send size={18} />
+        </motion.span>
         {status === 'sending' ? t.sending : t.send}
-      </button>
+      </motion.button>
       {status === 'success' && <p className="text-green-400 text-sm text-center">{t.success}</p>}
-      {status === 'error' && <p className="text-red-400 text-sm text-center">{t.error}</p>}
+      {status === 'error'   && <p className="text-red-400   text-sm text-center">{t.error}</p>}
     </form>
   );
 }
